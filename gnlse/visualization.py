@@ -41,7 +41,7 @@ def plot_frequency_vs_distance_logarithmic(solver, ax=None, norm=None,
 
     lIW = np.fliplr(
         10 * np.log10(np.abs(solver.AW)**2 / norm,
-                      where=(np.abs(solver.AW)**2 > 0)))
+                      where=(np.abs(solver.AW)**2 > 0), out = None))
     frequency = (solver.W - solver.w_0) / 2 / np.pi  # frequency grid
 
     if frequency_range is not None:
@@ -260,7 +260,7 @@ def plot_wavelength_for_distance_slice_logarithmic(solver, WL_range=None,
 
     lIW = np.fliplr(
         10 * np.log10(np.abs(solver.AW)**2 / norm,
-                      where=(np.abs(solver.AW)**2 > 0)))
+                      where=(np.abs(solver.AW)**2 > 0), out = None))
     WL = 2 * np.pi * c / solver.W  # wavelength grid
     WL_asc = np.flip(WL, )  # ascending order for interpolation
     iio = np.logical_and(WL_asc > WL_range[0],
@@ -322,7 +322,7 @@ def plot_delay_for_distance_slice_logarithmic(solver, time_range=None, ax=None,
         norm = np.max(np.abs(solver.At)**2)
 
     lIt = 10 * np.log10(np.abs(solver.At)**2 / norm,
-                        where=(np.abs(solver.At)**2 > 0))
+                        where=(np.abs(solver.At)**2 > 0), out = None)
 
     # indices of interest if no z_slice positions were given
     if z_slice is None:
@@ -436,7 +436,7 @@ def plot_frequency_for_distance_slice_logarithmic(solver, frequency_range=None,
 
     lIW = np.fliplr(
         10 * np.log10(np.abs(solver.AW)**2 / norm,
-                      where=(np.abs(solver.AW)**2 > 0)))
+                      where=(np.abs(solver.AW)**2 > 0), out = None))
 
     # indices of interest if no z_slice positions were given
     if z_slice is None:
@@ -491,7 +491,7 @@ def plot_delay_vs_distance_logarithmic(solver, time_range=None, ax=None,
         norm = np.max(np.abs(solver.At)**2)
 
     lIT = 10 * np.log10(np.abs(solver.At)**2 / norm,
-                        where=(np.abs(solver.At)**2 > 0))
+                        where=(np.abs(solver.At)**2 > 0), out = None)
 
     ax.pcolormesh(solver.t, solver.Z, lIT, shading="auto", vmin=-40,
                   cmap=cmap)
@@ -631,7 +631,7 @@ def plot_wavelength_vs_distance_logarithmic(solver, WL_range=None,
 
     lIW = np.fliplr(
         10 * np.log10(np.abs(solver.AW)**2 / norm,
-                      where=(np.abs(solver.AW)**2 > 0)))
+                      where=(np.abs(solver.AW)**2 > 0), out = None))
     WL = 2 * np.pi * c / solver.W  # wavelength grid
     WL_asc = np.flip(WL, )  # ascending order for interpolation
     iis = np.logical_and(WL_asc > WL_range[0],
@@ -671,3 +671,114 @@ def quick_plot(solution):
     plot_delay_vs_distance(solution)
 
     plt.show()
+
+def plot_wavelength_vs_distance_MM(solver, WL_range=None, ax=None,
+                                norm=None, cmap="magma"):
+
+    if ax is None:
+        ax = plt.gca()
+
+    # Wavelength grids for all three channels
+    WL = 2 * np.pi * c / solver.W
+
+    # Spectral intensity for all channels
+    IW = np.abs(solver.AW)**2
+
+    # Normalize
+    if norm is None:
+        norm = np.max(IW)
+
+    IW = IW / norm
+
+    # Concatenate wavelength grids and spectral intensities
+    WL_combined = WL.reshape(-1)
+    IW_combined = IW.reshape(
+        solver.AW.shape[0], -1
+    )
+
+    # Sort all wavelengths in ascending order
+    sort_idx = np.argsort(WL_combined)
+
+    WL_combined = WL_combined[sort_idx]
+    IW_combined = IW_combined[:, sort_idx]
+
+    # Restrict wavelength range
+    if WL_range is None:
+        WL_range = [WL_combined.min(), WL_combined.max()]
+
+    mask = (
+            (WL_combined >= WL_range[0]) &
+            (WL_combined <= WL_range[1])
+            )
+
+    WL_combined = WL_combined[mask]
+    IW_combined = IW_combined[:, mask]
+
+    interpolator = RegularGridInterpolator((WL_combined, solver.Z),
+                                           IW_combined.T)
+    newWL = np.linspace(np.min(WL_combined), np.max(WL_combined), IW_combined.shape[1])
+    WL_new_grid, Z_new_grid = np.meshgrid(newWL, solver.Z, indexing='ij')
+    toshow = interpolator((WL_new_grid, Z_new_grid)).T
+
+    ax.imshow(toshow, origin='lower', aspect='auto', cmap=cmap,
+               extent=[np.min(WL_combined), np.max(WL_combined), 0, np.max(solver.Z)],
+               vmin=0)
+    ax.set_xlabel("Wavelength [nm]")
+    ax.set_ylabel("Distance [m]")
+    return ax
+
+def plot_wavelength_vs_distance_logarithmic_MM(solver, WL_range=None, ax=None,
+                                norm=None, cmap="magma"):
+
+    if ax is None:
+        ax = plt.gca()
+
+    # Wavelength grids for all three channels
+    WL = 2 * np.pi * c / solver.W
+
+    # Spectral intensity for all channels
+    lIW = 10*np.log10(np.abs(solver.AW)**2,
+                      where=(np.abs(solver.AW)**2 > 0), out = None)
+
+    # Normalize
+    if norm is None:
+        norm = np.max(lIW)
+
+    lIW = lIW / norm
+
+    # Concatenate wavelength grids and spectral intensities
+    WL_combined = WL.reshape(-1)
+    lIW_combined = lIW.reshape(
+        solver.AW.shape[0], -1
+    )
+
+    # Sort all wavelengths in ascending order
+    sort_idx = np.argsort(WL_combined)
+
+    WL_combined = WL_combined[sort_idx]
+    lIW_combined = lIW_combined[:, sort_idx]
+
+    # Restrict wavelength range
+    if WL_range is None:
+        WL_range = [WL_combined.min(), WL_combined.max()]
+
+    mask = (
+        (WL_combined >= WL_range[0]) &
+        (WL_combined <= WL_range[1])
+    )
+
+    WL_combined = WL_combined[mask]
+    lIW_combined = lIW_combined[:, mask]
+
+    interpolator = RegularGridInterpolator((WL_combined, solver.Z),
+                                           lIW_combined.T, method='cubic')
+    newWL = np.linspace(np.min(WL_combined), np.max(WL_combined), lIW_combined.shape[1])
+    WL_new_grid, Z_new_grid = np.meshgrid(newWL, solver.Z, indexing='ij')
+    toshow = interpolator((WL_new_grid, Z_new_grid)).T
+
+    ax.imshow(toshow, origin='lower', aspect='auto', cmap=cmap,
+               extent=[np.min(WL_combined), np.max(WL_combined), 0, np.max(solver.Z)],
+               vmin=-40)
+    ax.set_xlabel("Wavelength [nm]")
+    ax.set_ylabel("Distance [m]")
+    return ax
